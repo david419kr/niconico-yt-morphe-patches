@@ -3,5 +3,8 @@ extension {
 }
 
 android {
-    namespace = "app.template.extension"
+    namespace = "io.github.david419kr.niconicoyt.extension"
+    defaultConfig {
+        minSdk = 28
+    }
 }

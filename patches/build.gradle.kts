@@ -1,14 +1,13 @@
-group = "app.template"
+group = "io.github.david419kr.niconicoyt"
 
 patches {
-    // TODO: Update this section with your project details.
     about {
-        name = "UserXYZ Patches"
-        description = "Patches for apps I like"
-        source = "git@github.com:UserXYZ/morphe-patches.git"
-        author = "Awesome dev"
-        contact = "na"
-        website = "na"
+        name = "Niconico YT Comments Patches"
+        description = "Niconico-style scrolling live-chat overlays for the Android YouTube app"
+        source = "https://github.com/david419kr/niconico-yt-android-patches"
+        author = "david419kr"
+        contact = "https://github.com/david419kr"
+        website = "https://github.com/david419kr/niconico-yt"
         license = "GPLv3"
     }
 }

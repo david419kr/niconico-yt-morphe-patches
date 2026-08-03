@@ -19,3 +19,17 @@ provided that such references:
 - Are accurate, factual, and non-misleading;
 - Do not suggest authorship by the Morphe project; and
 - Appear only in a secondary or descriptive context, not as part of the product or project name.
+
+
+Niconico YT Comments Patches notice
+===================================
+
+This project was initialized from MorpheApp/morphe-patches-template at
+commit 9f98aacd6cd1926db567f5d13f921e6cb90a4b8a.
+
+The self-contained YouTube resource mapping and fingerprint implementation
+is derived from MorpheApp/morphe-patches-library and
+MorpheApp/morphe-patches. File-specific notices are preserved in source.
+
+The Niconico-style feature design is based on david419kr/niconico-yt,
+which is licensed under the MIT License.

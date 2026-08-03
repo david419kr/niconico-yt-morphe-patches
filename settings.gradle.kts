@@ -1,6 +1,11 @@
-rootProject.name = "morphe-patches-template"
+rootProject.name = "niconico-yt-android-patches"
 
 pluginManagement {
+    val localPlugin = settingsDir.parentFile.resolve("morphe-patches-gradle-plugin")
+    if (localPlugin.isDirectory) {
+        includeBuild(localPlugin.absolutePath)
+    }
+
     repositories {
         gradlePluginPortal()
         google()
@@ -18,4 +23,13 @@ pluginManagement {
 
 plugins {
     id("app.morphe.patches") version "1.3.3"
+}
+
+val localPatcher = file("../morphe-patcher")
+if (localPatcher.isDirectory) {
+    includeBuild(localPatcher) {
+        dependencySubstitution {
+            substitute(module("app.morphe:morphe-patcher")).using(project(":"))
+        }
+    }
 }

@@ -1,0 +1,107 @@
+package io.github.david419kr.niconicoyt.patches.youtube.niconicocomments
+
+import app.morphe.patcher.Fingerprint
+import app.morphe.patcher.InstructionLocation.MatchAfterImmediately
+import app.morphe.patcher.InstructionLocation.MatchAfterWithin
+import app.morphe.patcher.OpcodesFilter
+import app.morphe.patcher.checkCast
+import app.morphe.patcher.literal
+import app.morphe.patcher.methodCall
+import app.morphe.patcher.opcode
+import app.morphe.patcher.string
+import com.android.tools.smali.dexlib2.AccessFlags
+import com.android.tools.smali.dexlib2.Opcode
+import io.github.david419kr.niconicoyt.patches.shared.ResourceType
+import io.github.david419kr.niconicoyt.patches.shared.resourceLiteral
+
+internal object YoutubeLayoutConstructorFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "V",
+    filters = listOf(
+        literal(159962),
+        resourceLiteral(ResourceType.ID, "player_control_previous_button_touch_area"),
+        resourceLiteral(ResourceType.ID, "player_control_next_button_touch_area"),
+        methodCall(parameters = listOf("Landroid/view/View;", "I")),
+    ),
+)
+
+internal object NiconicoCommentsOverlayFingerprint : Fingerprint(
+    classFingerprint = YoutubeLayoutConstructorFingerprint,
+    returnType = "V",
+    parameters = listOf(),
+    filters = listOf(
+        resourceLiteral(ResourceType.ID, "inset_overlay_view_layout"),
+        checkCast("Landroid/widget/FrameLayout;", MatchAfterWithin(20)),
+    ),
+)
+
+private object VideoIdParentFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "[L",
+    parameters = listOf("L"),
+    filters = listOf(literal(524288L)),
+)
+
+internal object VideoIdFingerprint : Fingerprint(
+    classFingerprint = VideoIdParentFingerprint,
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "V",
+    parameters = listOf("L"),
+    filters = listOf(
+        methodCall(opcode = Opcode.INVOKE_INTERFACE, returnType = "Ljava/lang/String;"),
+        opcode(Opcode.MOVE_RESULT_OBJECT, location = MatchAfterImmediately()),
+        methodCall(
+            smali = "Ljava/util/Map;->put(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+            location = MatchAfterWithin(6),
+        ),
+        opcode(Opcode.RETURN_VOID, location = MatchAfterImmediately()),
+    ),
+)
+
+internal object PlayerTypeEnumFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.STATIC, AccessFlags.CONSTRUCTOR),
+    strings = listOf(
+        "WATCH_WHILE_PICTURE_IN_PICTURE",
+        "NONE",
+        "HIDDEN",
+        "WATCH_WHILE_MINIMIZED",
+        "WATCH_WHILE_MAXIMIZED",
+        "WATCH_WHILE_FULLSCREEN",
+        "WATCH_WHILE_SLIDING_MAXIMIZED_FULLSCREEN",
+        "WATCH_WHILE_SLIDING_MINIMIZED_MAXIMIZED",
+        "WATCH_WHILE_SLIDING_MINIMIZED_DISMISSED",
+        "INLINE_MINIMAL",
+        "VIRTUAL_REALITY_FULLSCREEN",
+    ),
+)
+
+internal object VideoStateEnumFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.STATIC, AccessFlags.CONSTRUCTOR),
+    parameters = listOf(),
+    strings = listOf(
+        "NEW",
+        "PLAYING",
+        "PAUSED",
+        "RECOVERABLE_ERROR",
+        "UNRECOVERABLE_ERROR",
+        "ENDED",
+    ),
+)
+
+internal object ControlsStateToStringFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    parameters = listOf(),
+    returnType = "Ljava/lang/String;",
+    filters = listOf(
+        string("videoState"),
+        string("isBuffering"),
+    ),
+)
+
+internal object VideoTimeReferenceFingerprint : Fingerprint(
+    filters = OpcodesFilter.opcodesToFilters(
+        Opcode.INVOKE_DIRECT_RANGE,
+        Opcode.IGET_OBJECT,
+    ),
+    strings = listOf("Media progress reported outside media playback: "),
+)

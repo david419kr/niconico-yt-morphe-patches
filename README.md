@@ -1,86 +1,84 @@
-# 👋🧩 Morphe Patches template
+# Niconico YT Comments Patches
 
-Template repository for Morphe Patches.
+An independent patch bundle that adds Niconico-style scrolling comments to the Android YouTube app. It is built from the official Morphe third-party patch template, but is a separate project and is not authored or supported by the Morphe project.
 
-## ❓ About
+## Current status
 
-Patches for apps I like.
+The repository currently contains a self-contained packaging PoC. Enabling `Niconico-style comments (Standalone PoC)` adds three synthetic comments to the regular YouTube watch player and connects them to locally owned hooks for:
 
-TODO: Update this about section with a brief introduction/summary about this repo and what it offers.
+- foreground video ID changes;
+- maximized/fullscreen player visibility;
+- play/pause state;
+- periodic YouTube playback-time samples;
+- the player overlay `ViewGroup`.
 
-## 🩹 Patches list
+The extension interpolates between playback-time samples with Android's monotonic clock and renders all comments in one non-interactive custom `View`. It does not depend on classes or internal helpers from the official patch bundle at patch runtime.
 
-<!-- PATCHES_START EXPANDED -->
+Only YouTube `21.04.223` is declared compatible, and that declaration remains unverified until the patch is applied to the exact target APK and exercised on a device.
 
-<!-- Do not modify this section by hand. The patch list is generated when release.yml creates a new release.
-     
-     If you wish for the patches list to be collapsed, then remove the word 'EXPANDED' from the comment tag above.
+## Not implemented yet
 
-     If you wish to manually keep this list updated then remove the PATCHES_START and PATCHES_END 
-     comment blocks entirely. -->
+- YouTube live-chat or replay-chat networking and parsing
+- real chat messages, emoji, memberships, and Super Chats
+- playback-speed-aware interpolation
+- settings UI
+- Shorts, miniplayer, PiP, and cast-target overlays
+- target APK patch/apply/install smoke tests
 
-#### A list of your patches will automatically be shown here after your first patches release is created.
+## Build
 
-&nbsp;
+Requirements:
 
-## 🚀 Get started
+- JDK 21
+- Android SDK
+- GitHub Package credentials as described by the [Morphe development documentation](https://github.com/MorpheApp/morphe-documentation/blob/main/docs/morphe-development/README.md)
 
-To start using this template, follow these steps:
+For local source development, the build automatically uses sibling checkouts named `morphe-patches-gradle-plugin` and `morphe-patcher` when present. This avoids downloading those two components from the package registry, but the plugin's repository configuration still expects `GITHUB_ACTOR` and `GITHUB_TOKEN`.
 
-1. [Setup](https://github.com/MorpheApp/morphe-documentation/blob/main/docs/morphe-development/README.md) your development environment including adding a GitHub PAT as described [here](https://github.com/MorpheApp/morphe-patcher/blob/main/docs/2_1_setup.md#-prepare-the-environment).
-2. [Create a new repository using this template](https://github.com/new?template_name=morphe-patches-template&template_owner=MorpheApp). Select create a new repository, and **enable 'Include all branches'** 
-3. Enable "Allow GitHub Actions to create and approve pull requests" in your repo Settings > Actions > General > Workflow permissions
-4. Update the [build.gradle.kts](patches/build.gradle.kts) file (Specifically, the 
-   [group of the project](patches/build.gradle.kts#L1), and the [About](patches/build.gradle.kts#L6-L11))
-5. Update the [README.md](README.md) file to be specific of your repo, and update the links in the [issue templates](.github/ISSUE_TEMPLATE).
-6. Choose a name for your patches project. Keep in mind you must use a name that does not 
-   imply authorship by the Morphe open source project. If unsure, then simply name these
-   patches after yourself ("UserXYZ Morphe patches"). See the [NOTICE](NOTICE) for details. 
-7. (Optional): Add `patches-bundle.png` to the project if you want a custom icon to show in
-   Morphe Manager instead of your GitHub profile avatar.
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+$env:ANDROID_HOME = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
+$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+.\gradlew.bat buildAndroid --no-daemon
+```
 
-🎉 You are now ready to start creating patches!
+The standalone bundle is generated at:
 
-## 🧑‍💻 Usage
+```text
+patches/build/libs/patches-<version>.mpp
+```
 
-To develop and release your Patches using this template:
+## Structure
 
-- Do all development work in the `dev` branch.
-- For local development work build your patches using the gradle task `./gradlew buildAndroid` to generate the mpp file found in `patches/build/libs/patches-*.mpp`. Apply your patches locally using Morphe CLI tool like any other patch bundle.
-- Always use [Semantic commit](https://kapeli.com/cheat_sheets/Semantic_Commits.docset/Contents/Resources/Documents/index) messages for commits. To keep it simple use only 3 commit message types: `feat: Added a new feature`, `fix: Some problem now fixed`, `chore: Random change you do not want in the user facing changelog`
-- Commits of `fix:` and `feat:` will automatically generate new pre-releases and `chore:` will not create a new release.
-- Users can apply your dev branch releases by enabling `pre-release` in Morphe Manager patch sources.
-- When your dev branch is ready and you want a stable release, merge dev branch to main (do not squash, and only merge).
-- **Always use semantic release (release.yml)**. Do not manually upload or creating releases by hand because many files must be updated and release.yml handles everything.
+```text
+patches/src/main/kotlin/io/github/david419kr/niconicoyt/patches/
+  shared/
+    Constants.kt
+    ResourceMappingPatch.kt
+  youtube/niconicocomments/
+    Fingerprints.kt
+    NiconicoCommentsPatch.kt
 
-## 🤓 Tips
-- See the [patcher documentation](https://github.com/MorpheApp/morphe-patcher/blob/main/docs/1_patcher_intro.md)
-  for more examples of creating patches and fingerprints.
-- Do not manually edit any generated files such as: `patches-list.json`, `patches-bundle.json`, `CHANGELOG.md`.
-  These files will be automatically updated in the release action.
-- Do not force push any semantic release commits or you will break the release. To 'redo' the last release then:
-  - Git drop the last dev/main semantic release commit you want to redo.
-  - Delete the release from the release area of this repo and delete the tag   
-  - Make any other changes you wish to do
-  - Force push dev/main branch
-  - A new replacement release will be created by `release.yml`
+extensions/extension/src/main/java/io/github/david419kr/niconicoyt/extension/niconicocomments/
+  NiconicoCommentsController.java
+  NiconicoCommentsOverlayView.java
+```
 
+The patch side owns the resource mapping and all YouTube fingerprints needed by the PoC. The extension side is compiled into `extensions/extension.mpe`, which is embedded in the generated `.mpp` and merged into the patched APK when the patch is enabled.
 
-<!-- The patches end tag is intentionally placed here so the first release will cleanup 
-     this readme of all developer instructions above. -->
-<!-- PATCHES_END -->
+## Verified locally
 
-#### How to use these patches
+- Official template base: `9f98aacd6cd1926db567f5d13f921e6cb90a4b8a`
+- Morphe patches Gradle plugin: `1.3.3`
+- Morphe patcher: `1.7.0`
+- `.\gradlew.bat buildAndroid --no-daemon`: passed
+- Generated `patches-1.0.0.mpp`: 695,959 bytes
+- SHA-256: `AF98904F0FD2EADEEE85069FC558798A358E212831D7EE7D879347B45331B6E5`
+- Embedded `extension.mpe`: valid DEX 039
+- JADX verification: controller and overlay classes, time/state hooks, and draw calls are present
 
-Click here to add these patches to Morphe: https://morphe.software/add-source?github=xyz-user/xyz-patches
+These values describe the first local PoC build and will change after source updates. A successful bundle build does not prove that the fingerprints match a real YouTube APK.
 
-Or manually add this repository url as a patch source in Morphe: https://github.com/xyz-user/xyz-patches
+## License
 
-### 🛠️ Building
-
-To build UserXYZ Patches,
-you can follow the [Morphe documentation](https://github.com/MorpheApp/morphe-documentation).
-
-## 📜 License
-
-UserXYZ Patches are licensed under the [GNU General Public License v3.0](LICENSE)
+This project is licensed under [GNU GPLv3](LICENSE) with the notices in [NOTICE](NOTICE). The resource mapping implementation retains its file-specific attribution and Section 7 notice. The browser extension that inspired the feature is [david419kr/niconico-yt](https://github.com/david419kr/niconico-yt), licensed under MIT.
