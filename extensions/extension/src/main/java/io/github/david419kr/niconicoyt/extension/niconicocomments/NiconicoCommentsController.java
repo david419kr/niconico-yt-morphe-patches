@@ -15,8 +15,17 @@ public final class NiconicoCommentsController {
     private static final String LOG_TAG = "NiconicoComments";
     private static final String PREFERENCES_NAME = "niconico_comments";
     private static final String ENABLED_KEY = "overlay_enabled";
+    private static final String FONT_SIZE_KEY = "font_size_sp";
+    private static final String OPACITY_KEY = "opacity_percent";
     private static final long SEEK_THRESHOLD_MS = 12_000;
     private static final Object SOURCE_LOCK = new Object();
+
+    static final int DEFAULT_FONT_SIZE_SP = 20;
+    static final int MIN_FONT_SIZE_SP = 12;
+    static final int MAX_FONT_SIZE_SP = 40;
+    static final int DEFAULT_OPACITY_PERCENT = 100;
+    static final int MIN_OPACITY_PERCENT = 10;
+    static final int MAX_OPACITY_PERCENT = 100;
 
     private static WeakReference<ViewGroup> overlayRootRef = new WeakReference<>(null);
     private static WeakReference<NiconicoCommentsOverlayView> overlayViewRef =
@@ -26,6 +35,8 @@ public final class NiconicoCommentsController {
     private static volatile boolean playerVisible;
     private static volatile boolean videoPlaying;
     private static volatile boolean commentsEnabled = true;
+    private static volatile int commentFontSizeSp = DEFAULT_FONT_SIZE_SP;
+    private static volatile int commentOpacityPercent = DEFAULT_OPACITY_PERCENT;
     private static volatile boolean preferenceLoaded;
     private static volatile long sampledVideoTimeMs = -1;
     private static volatile long sampleElapsedRealtimeMs;
@@ -42,7 +53,11 @@ public final class NiconicoCommentsController {
                 }
 
                 @Override
-                public void onComments(String videoId, List<NiconicoComment> comments) {
+                public void onComments(
+                        String videoId,
+                        List<NiconicoComment> comments,
+                        long liveSpreadWindowMs
+                ) {
                     if (!commentsEnabled || !videoId.equals(currentVideoId)) {
                         return;
                     }
@@ -50,7 +65,7 @@ public final class NiconicoCommentsController {
                     if (view != null) {
                         view.post(() -> {
                             if (commentsEnabled && videoId.equals(currentVideoId)) {
-                                view.addComments(comments);
+                                view.addComments(comments, liveSpreadWindowMs);
                             }
                         });
                     }
@@ -196,6 +211,59 @@ public final class NiconicoCommentsController {
         return enabled;
     }
 
+    static int getCommentFontSizeSp(Context context) {
+        loadPreference(context);
+        return commentFontSizeSp;
+    }
+
+    static void setCommentFontSizeSp(Context context, int fontSizeSp) {
+        loadPreference(context);
+        int clampedSize = clampFontSizeSp(fontSizeSp);
+        commentFontSizeSp = clampedSize;
+        context.getApplicationContext()
+                .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putInt(FONT_SIZE_KEY, clampedSize)
+                .apply();
+
+        NiconicoCommentsOverlayView view = overlayViewRef.get();
+        if (view != null) {
+            view.post(() -> view.setCommentFontSizeSp(clampedSize));
+        }
+    }
+
+    static int clampFontSizeSp(int fontSizeSp) {
+        return Math.max(MIN_FONT_SIZE_SP, Math.min(MAX_FONT_SIZE_SP, fontSizeSp));
+    }
+
+    static int getCommentOpacityPercent(Context context) {
+        loadPreference(context);
+        return commentOpacityPercent;
+    }
+
+    static void setCommentOpacityPercent(Context context, int opacityPercent) {
+        loadPreference(context);
+        int clampedOpacity = clampOpacityPercent(opacityPercent);
+        commentOpacityPercent = clampedOpacity;
+        context.getApplicationContext()
+                .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putInt(OPACITY_KEY, clampedOpacity)
+                .apply();
+
+        NiconicoCommentsOverlayView view = overlayViewRef.get();
+        if (view != null) {
+            view.post(() -> view.setCommentOpacityPercent(clampedOpacity));
+        }
+    }
+
+    static int clampOpacityPercent(int opacityPercent) {
+        return Math.max(
+                MIN_OPACITY_PERCENT,
+                Math.min(MAX_OPACITY_PERCENT, opacityPercent)
+        );
+    }
+
     static void loadPreference(Context context) {
         if (preferenceLoaded || context == null) {
             return;
@@ -207,6 +275,12 @@ public final class NiconicoCommentsController {
             SharedPreferences preferences = context.getApplicationContext()
                     .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE);
             commentsEnabled = preferences.getBoolean(ENABLED_KEY, true);
+            commentFontSizeSp = clampFontSizeSp(
+                    preferences.getInt(FONT_SIZE_KEY, DEFAULT_FONT_SIZE_SP)
+            );
+            commentOpacityPercent = clampOpacityPercent(
+                    preferences.getInt(OPACITY_KEY, DEFAULT_OPACITY_PERCENT)
+            );
             preferenceLoaded = true;
         }
     }
@@ -220,12 +294,16 @@ public final class NiconicoCommentsController {
             return;
         }
 
-        if (currentView != null && currentView.getParent() instanceof ViewGroup) {
-            ((ViewGroup) currentView.getParent()).removeView(currentView);
+        NiconicoCommentsOverlayView newView = currentView;
+        if (newView != null && newView.getParent() instanceof ViewGroup) {
+            ((ViewGroup) newView.getParent()).removeView(newView);
         }
-
-        NiconicoCommentsOverlayView newView = new NiconicoCommentsOverlayView(overlayRoot.getContext());
+        if (newView == null) {
+            newView = new NiconicoCommentsOverlayView(overlayRoot.getContext());
+        }
         newView.setVideoId(currentVideoId);
+        newView.setCommentFontSizeSp(commentFontSizeSp);
+        newView.setCommentOpacityPercent(commentOpacityPercent);
         newView.setClickable(false);
         newView.setFocusable(false);
         newView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -299,6 +377,8 @@ public final class NiconicoCommentsController {
     }
 
     private static void applyViewState(NiconicoCommentsOverlayView view) {
+        view.setCommentFontSizeSp(commentFontSizeSp);
+        view.setCommentOpacityPercent(commentOpacityPercent);
         view.setOverlayActive(commentsEnabled && playerVisible && !currentVideoId.isEmpty());
         view.setVideoPlaying(videoPlaying);
     }

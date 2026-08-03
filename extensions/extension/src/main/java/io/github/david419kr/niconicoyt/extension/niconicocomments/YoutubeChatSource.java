@@ -28,7 +28,11 @@ final class YoutubeChatSource implements Runnable {
     interface Listener {
         long getVideoTimeMs();
 
-        void onComments(String videoId, List<NiconicoComment> comments);
+        void onComments(
+                String videoId,
+                List<NiconicoComment> comments,
+                long liveSpreadWindowMs
+        );
 
         void onReplayReset(String videoId);
     }
@@ -41,13 +45,16 @@ final class YoutubeChatSource implements Runnable {
                     + "Chrome/138.0.0.0 Safari/537.36";
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 20_000;
-    private static final int DEFAULT_POLL_DELAY_MS = 5_000;
-    private static final int MIN_POLL_DELAY_MS = 1_000;
-    private static final int MAX_POLL_DELAY_MS = 30_000;
+    private static final int DEFAULT_CONTINUATION_TIMEOUT_MS = 5_000;
+    private static final int LIVE_POLL_MIN_DELAY_MS = 100;
+    private static final int LIVE_POLL_MAX_DELAY_MS = 250;
+    private static final int REPLAY_LOOP_DELAY_MS = 1_000;
     private static final int INITIAL_DISPLAY_LIMIT = 30;
     private static final long REPLAY_LOOKAHEAD_MS = 45_000;
     private static final long REPLAY_SEEK_THRESHOLD_MS = 12_000;
     private static final long REPLAY_START_MARGIN_MS = 5_000;
+    private static final long REPLAY_BASE_OFFSET_MS = 3_000;
+    private static final long REPLAY_CALCULATED_OFFSET_MAX_MS = 5_000;
     private static final int REPLAY_MAX_FETCHES_PER_UPDATE = 12;
     private static final int MAX_COMMENT_LENGTH = 200;
     private static final int MAX_SEEN_IDS = 4_096;
@@ -121,17 +128,23 @@ final class YoutubeChatSource implements Runnable {
                 }
                 firstPage = false;
 
+                Continuation nextContinuation = page.continuation;
                 if (!comments.isEmpty() && !stopped) {
-                    listener.onComments(videoId, comments);
+                    long spreadWindowMs = getLivePollDelayMs(
+                            nextContinuation == null
+                                    ? DEFAULT_CONTINUATION_TIMEOUT_MS
+                                    : nextContinuation.timeoutMs
+                    );
+                    listener.onComments(videoId, comments, spreadWindowMs);
                     Log.d(LOG_TAG, "Received " + comments.size() + " live-chat comments");
                 }
 
-                continuation = page.continuation;
+                continuation = nextContinuation;
                 if (continuation == null) {
                     Log.i(LOG_TAG, "Live-chat continuation ended for " + videoId);
                     break;
                 }
-                sleep(clampPollDelay(continuation.timeoutMs));
+                sleep(getLivePollDelayMs(continuation.timeoutMs));
             } catch (Exception exception) {
                 if (stopped) {
                     return;
@@ -152,6 +165,7 @@ final class YoutubeChatSource implements Runnable {
 
     private void runReplay(PageState state) {
         Log.i(LOG_TAG, "Replay-chat source selected for " + videoId);
+        Log.i(LOG_TAG, "Replay sync correction: " + state.replayOffsetMs + " ms");
         Continuation initialContinuation = state.continuation;
         Continuation continuation = initialContinuation;
         long loadedUntilMs = -1;
@@ -164,7 +178,7 @@ final class YoutubeChatSource implements Runnable {
         while (!stopped) {
             long videoTimeMs = listener.getVideoTimeMs();
             if (videoTimeMs < 0) {
-                sleep(MIN_POLL_DELAY_MS);
+                sleep(REPLAY_LOOP_DELAY_MS);
                 continue;
             }
 
@@ -217,7 +231,7 @@ final class YoutubeChatSource implements Runnable {
 
                     List<NiconicoComment> comments = deduplicate(page.comments);
                     if (!comments.isEmpty() && !stopped) {
-                        listener.onComments(videoId, comments);
+                        listener.onComments(videoId, comments, 0);
                         Log.d(LOG_TAG, "Received " + comments.size() + " replay-chat comments");
                     }
                     if (page.maxVideoOffsetMs >= 0) {
@@ -251,7 +265,7 @@ final class YoutubeChatSource implements Runnable {
                     break;
                 }
             }
-            sleep(MIN_POLL_DELAY_MS);
+            sleep(REPLAY_LOOP_DELAY_MS);
         }
     }
 
@@ -714,9 +728,9 @@ final class YoutubeChatSource implements Runnable {
                 : accessibilityData.optString("label", "");
     }
 
-    private static long getReplayOffsetMs(JSONObject playerResponse) {
+    static long getReplayOffsetMs(JSONObject playerResponse) {
         if (playerResponse == null) {
-            return 0;
+            return REPLAY_BASE_OFFSET_MS;
         }
         JSONObject videoDetails = playerResponse.optJSONObject("videoDetails");
         JSONObject microformat = playerResponse.optJSONObject("microformat");
@@ -727,7 +741,7 @@ final class YoutubeChatSource implements Runnable {
                 ? null
                 : playerMicroformat.optJSONObject("liveBroadcastDetails");
         if (videoDetails == null || liveDetails == null) {
-            return 0;
+            return REPLAY_BASE_OFFSET_MS;
         }
 
         try {
@@ -737,9 +751,12 @@ final class YoutubeChatSource implements Runnable {
                     Double.parseDouble(videoDetails.getString("lengthSeconds")) * 1_000
             );
             long offsetMs = endMs - startMs - durationMs;
-            return offsetMs > 1_000 ? Math.min(offsetMs, 5_000) : 0;
+            long calculatedOffsetMs = offsetMs > 1_000
+                    ? Math.min(offsetMs, REPLAY_CALCULATED_OFFSET_MAX_MS)
+                    : 0;
+            return REPLAY_BASE_OFFSET_MS + calculatedOffsetMs;
         } catch (Exception ignored) {
-            return 0;
+            return REPLAY_BASE_OFFSET_MS;
         }
     }
 
@@ -795,7 +812,7 @@ final class YoutubeChatSource implements Runnable {
             if (!continuation.isEmpty()) {
                 return new Continuation(
                         continuation,
-                        continuationData.optLong("timeoutMs", DEFAULT_POLL_DELAY_MS)
+                        continuationData.optLong("timeoutMs", DEFAULT_CONTINUATION_TIMEOUT_MS)
                 );
             }
         }
@@ -898,11 +915,8 @@ final class YoutubeChatSource implements Runnable {
             return null;
         }
 
-        String text = extractText(renderer.optJSONObject("message"))
-                .replace('\n', ' ')
-                .replace('\r', ' ')
-                .trim();
-        if (text.isEmpty() || text.length() > MAX_COMMENT_LENGTH) {
+        ParsedMessage message = parseMessage(renderer.optJSONObject("message"));
+        if (message.text.isEmpty() || message.text.length() > MAX_COMMENT_LENGTH) {
             return null;
         }
 
@@ -910,7 +924,8 @@ final class YoutubeChatSource implements Runnable {
         int backgroundColor = getPaidMessageBackgroundColor(paid);
         return new NiconicoComment(
                 renderer.optString("id", ""),
-                text,
+                message.text,
+                message.segments,
                 isMembership,
                 backgroundColor,
                 videoOffsetMs
@@ -918,17 +933,26 @@ final class YoutubeChatSource implements Runnable {
     }
 
     private static String extractText(JSONObject textRenderer) {
+        return parseMessage(textRenderer).text;
+    }
+
+    private static ParsedMessage parseMessage(JSONObject textRenderer) {
+        List<NiconicoComment.Segment> segments = new ArrayList<>();
         if (textRenderer == null) {
-            return "";
+            return new ParsedMessage("", segments);
         }
         String simpleText = textRenderer.optString("simpleText", "");
         if (!simpleText.isEmpty()) {
-            return simpleText;
+            String normalized = normalizeMessageText(simpleText).trim();
+            if (!normalized.isEmpty()) {
+                segments.add(NiconicoComment.Segment.text(normalized));
+            }
+            return new ParsedMessage(normalized, segments);
         }
 
         JSONArray runs = textRenderer.optJSONArray("runs");
         if (runs == null) {
-            return "";
+            return new ParsedMessage("", segments);
         }
         StringBuilder result = new StringBuilder();
         for (int index = 0; index < runs.length(); index++) {
@@ -936,9 +960,10 @@ final class YoutubeChatSource implements Runnable {
             if (run == null) {
                 continue;
             }
-            String text = run.optString("text", "");
+            String text = normalizeMessageText(run.optString("text", ""));
             if (!text.isEmpty()) {
                 result.append(text);
+                segments.add(NiconicoComment.Segment.text(text));
                 continue;
             }
 
@@ -948,9 +973,47 @@ final class YoutubeChatSource implements Runnable {
             if (fallback.isEmpty() && emoji != null) {
                 fallback = emoji.optString("emojiId", "");
             }
-            result.append(fallback);
+            if (!fallback.isEmpty()) {
+                result.append(fallback);
+                String imageUrl = getBestEmojiImageUrl(emoji);
+                segments.add(imageUrl.isEmpty()
+                        ? NiconicoComment.Segment.text(fallback)
+                        : NiconicoComment.Segment.emoji(fallback, imageUrl));
+            }
         }
-        return result.toString();
+        return new ParsedMessage(result.toString().trim(), segments);
+    }
+
+    private static String normalizeMessageText(String text) {
+        return text.replace('\n', ' ').replace('\r', ' ');
+    }
+
+    private static String getBestEmojiImageUrl(JSONObject emoji) {
+        JSONObject image = emoji == null ? null : emoji.optJSONObject("image");
+        JSONArray thumbnails = image == null ? null : image.optJSONArray("thumbnails");
+        if (thumbnails == null) {
+            return "";
+        }
+
+        String bestUrl = "";
+        long bestArea = -1;
+        for (int index = 0; index < thumbnails.length(); index++) {
+            JSONObject thumbnail = thumbnails.optJSONObject(index);
+            if (thumbnail == null) {
+                continue;
+            }
+            String url = thumbnail.optString("url", "");
+            if (url.isEmpty()) {
+                continue;
+            }
+            long area = (long) thumbnail.optInt("width", 0)
+                    * thumbnail.optInt("height", 0);
+            if (bestUrl.isEmpty() || area >= bestArea) {
+                bestArea = area;
+                bestUrl = url.startsWith("//") ? "https:" + url : url;
+            }
+        }
+        return bestUrl;
     }
 
     private static boolean hasMembershipBadge(JSONObject renderer) {
@@ -994,11 +1057,11 @@ final class YoutubeChatSource implements Runnable {
         return start > 0 ? value.substring(start) : value;
     }
 
-    private static long clampPollDelay(long value) {
+    static long getLivePollDelayMs(long value) {
         if (value <= 0) {
-            return DEFAULT_POLL_DELAY_MS;
+            return LIVE_POLL_MAX_DELAY_MS;
         }
-        return Math.max(MIN_POLL_DELAY_MS, Math.min(MAX_POLL_DELAY_MS, value));
+        return Math.max(LIVE_POLL_MIN_DELAY_MS, Math.min(LIVE_POLL_MAX_DELAY_MS, value));
     }
 
     private void sleepBeforeRetry(int attempt) {
@@ -1014,6 +1077,16 @@ final class YoutubeChatSource implements Runnable {
         } catch (InterruptedException ignored) {
             Thread.currentThread().interrupt();
             stopped = true;
+        }
+    }
+
+    private static final class ParsedMessage {
+        final String text;
+        final List<NiconicoComment.Segment> segments;
+
+        ParsedMessage(String text, List<NiconicoComment.Segment> segments) {
+            this.text = text;
+            this.segments = segments;
         }
     }
 
