@@ -7,28 +7,33 @@ import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.view.View;
 
-/** Draws synthetic comments for the standalone packaging proof of concept. */
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
+/** Draws live and replay chat comments on the YouTube playback timeline. */
 final class NiconicoCommentsOverlayView extends View {
-    private static final String[] COMMENTS = {
-            "Standalone MPP comment",
-            "Synced to YouTube time",
-            "Pauses with playback",
-    };
-    private static final long[] START_OFFSETS_MS = {800, 2_100, 3_500};
     private static final long COMMENT_DURATION_MS = 7_000;
-    private static final long UNSET_TIME = Long.MIN_VALUE;
+    private static final long LIVE_BATCH_MAX_SPREAD_MS = 7_000;
+    private static final long LIVE_BATCH_DEFAULT_STEP_MS = 350;
     private static final long IDLE_FRAME_DELAY_MS = 250;
+    private static final int MAX_BUFFERED_COMMENTS = 500;
+    private static final int MEMBERSHIP_COLOR = Color.rgb(43, 166, 64);
 
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
     private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
+    private final Paint backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint.FontMetrics fontMetrics = new Paint.FontMetrics();
+    private final List<DisplayComment> comments = new ArrayList<>();
     private final float laneHeight;
     private final float firstBaseline;
+    private final float backgroundPadding;
+    private final float backgroundRadius;
 
     private String videoId = "";
     private boolean overlayActive;
     private boolean videoPlaying;
-    private long timelineAnchorMs = UNSET_TIME;
+    private int nextLane;
 
     NiconicoCommentsOverlayView(Context context) {
         super(context);
@@ -51,6 +56,8 @@ final class NiconicoCommentsOverlayView extends View {
         fillPaint.getFontMetrics(fontMetrics);
         laneHeight = fontMetrics.descent - fontMetrics.ascent + (8 * density);
         firstBaseline = -fontMetrics.ascent + (12 * density);
+        backgroundPadding = 4 * density;
+        backgroundRadius = 3 * density;
 
         setWillNotDraw(false);
         setVisibility(GONE);
@@ -61,8 +68,7 @@ final class NiconicoCommentsOverlayView extends View {
             return;
         }
         videoId = nextVideoId;
-        timelineAnchorMs = UNSET_TIME;
-        invalidate();
+        clearComments();
     }
 
     void setOverlayActive(boolean active) {
@@ -82,54 +88,123 @@ final class NiconicoCommentsOverlayView extends View {
         requestNextFrame();
     }
 
+    void addComments(List<NiconicoComment> incoming) {
+        if (incoming.isEmpty()) {
+            return;
+        }
+        long videoTimeMs = NiconicoCommentsController.getVideoTime();
+        if (videoTimeMs < 0) {
+            return;
+        }
+
+        long spreadStepMs = Math.min(
+                LIVE_BATCH_DEFAULT_STEP_MS,
+                LIVE_BATCH_MAX_SPREAD_MS / Math.max(1, incoming.size())
+        );
+        for (int index = 0; index < incoming.size(); index++) {
+            NiconicoComment comment = incoming.get(index);
+            long startTimeMs = comment.videoOffsetMs >= 0
+                    ? comment.videoOffsetMs
+                    : videoTimeMs + (index * spreadStepMs);
+            comments.add(new DisplayComment(comment, startTimeMs, nextLane++));
+        }
+        while (comments.size() > MAX_BUFFERED_COMMENTS) {
+            comments.remove(0);
+        }
+        removeExpiredComments(videoTimeMs);
+        requestNextFrame();
+    }
+
+    void clearComments() {
+        comments.clear();
+        nextLane = 0;
+        invalidate();
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        if (!overlayActive || !videoPlaying || videoId.isEmpty()) {
+        if (!overlayActive || videoId.isEmpty()) {
             return;
         }
 
         long videoTimeMs = NiconicoCommentsController.getVideoTime();
         if (videoTimeMs < 0) {
-            postInvalidateDelayed(IDLE_FRAME_DELAY_MS);
+            if (videoPlaying) {
+                postInvalidateDelayed(IDLE_FRAME_DELAY_MS);
+            }
             return;
         }
-        if (timelineAnchorMs == UNSET_TIME) {
-            timelineAnchorMs = videoTimeMs;
-        }
 
+        int laneCount = Math.max(1, (int) ((getHeight() - firstBaseline) / laneHeight) + 1);
         boolean hasActiveOrUpcomingComment = false;
-        for (int index = 0; index < COMMENTS.length; index++) {
-            long elapsedMs = videoTimeMs - timelineAnchorMs - START_OFFSETS_MS[index];
+        Iterator<DisplayComment> iterator = comments.iterator();
+        while (iterator.hasNext()) {
+            DisplayComment displayComment = iterator.next();
+            long elapsedMs = videoTimeMs - displayComment.startTimeMs;
             if (elapsedMs < 0) {
                 hasActiveOrUpcomingComment = true;
                 continue;
             }
             if (elapsedMs > COMMENT_DURATION_MS) {
+                iterator.remove();
                 continue;
             }
 
             hasActiveOrUpcomingComment = true;
-            String text = COMMENTS[index];
-            float textWidth = fillPaint.measureText(text);
+            NiconicoComment comment = displayComment.comment;
+            float textWidth = fillPaint.measureText(comment.text);
             float progress = (float) elapsedMs / COMMENT_DURATION_MS;
             float x = getWidth() - (progress * (getWidth() + textWidth));
-            float y = firstBaseline + (index * laneHeight);
+            float y = firstBaseline + ((displayComment.lane % laneCount) * laneHeight);
 
-            canvas.drawText(text, x, y, strokePaint);
-            canvas.drawText(text, x, y, fillPaint);
+            if (comment.backgroundColor != Color.TRANSPARENT) {
+                backgroundPaint.setColor(comment.backgroundColor);
+                canvas.drawRoundRect(
+                        x - backgroundPadding,
+                        y + fontMetrics.ascent - backgroundPadding,
+                        x + textWidth + backgroundPadding,
+                        y + fontMetrics.descent + backgroundPadding,
+                        backgroundRadius,
+                        backgroundRadius,
+                        backgroundPaint
+                );
+            }
+
+            fillPaint.setColor(comment.membership ? MEMBERSHIP_COLOR : Color.WHITE);
+            canvas.drawText(comment.text, x, y, strokePaint);
+            canvas.drawText(comment.text, x, y, fillPaint);
         }
 
-        if (hasActiveOrUpcomingComment) {
+        if (videoPlaying && hasActiveOrUpcomingComment) {
             postInvalidateOnAnimation();
-        } else {
-            postInvalidateDelayed(IDLE_FRAME_DELAY_MS);
+        }
+    }
+
+    private void removeExpiredComments(long videoTimeMs) {
+        Iterator<DisplayComment> iterator = comments.iterator();
+        while (iterator.hasNext()) {
+            if (videoTimeMs - iterator.next().startTimeMs > COMMENT_DURATION_MS) {
+                iterator.remove();
+            }
         }
     }
 
     private void requestNextFrame() {
-        if (overlayActive && videoPlaying) {
+        if (overlayActive) {
             postInvalidateOnAnimation();
+        }
+    }
+
+    private static final class DisplayComment {
+        final NiconicoComment comment;
+        final long startTimeMs;
+        final int lane;
+
+        DisplayComment(NiconicoComment comment, long startTimeMs, int lane) {
+            this.comment = comment;
+            this.startTimeMs = startTimeMs;
+            this.lane = lane;
         }
     }
 }

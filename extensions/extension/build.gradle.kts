@@ -8,3 +8,8 @@ android {
         minSdk = 28
     }
 }
+
+dependencies {
+    testImplementation(libs.junit)
+    testImplementation(libs.json)
+}

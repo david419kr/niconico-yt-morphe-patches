@@ -16,11 +16,13 @@ import io.github.david419kr.niconicoyt.patches.shared.resourceMappingPatch
 
 private const val EXTENSION_CONTROLLER =
     "Lio/github/david419kr/niconicoyt/extension/niconicocomments/NiconicoCommentsController;"
+private const val EXTENSION_TOGGLE_BUTTON =
+    "Lio/github/david419kr/niconicoyt/extension/niconicocomments/NiconicoCommentsToggleButton;"
 
 @Suppress("unused")
 val niconicoCommentsPatch = bytecodePatch(
-    name = "Niconico-style comments (Standalone PoC)",
-    description = "Adds a self-contained playback-synchronized scrolling comment overlay.",
+    name = "Niconico-style live/replay comments (Experimental)",
+    description = "Adds public live/replay chat overlays and a player on/off button.",
     default = false,
 ) {
     compatibleWith(YOUTUBE)
@@ -50,6 +52,19 @@ val niconicoCommentsPatch = bytecodePatch(
                     checkCastIndex + 1,
                     "invoke-static {v$overlayRegister}, " +
                         "$EXTENSION_CONTROLLER->initialize(Landroid/view/ViewGroup;)V",
+                )
+            }
+        }
+
+        NiconicoCommentsBottomButtonFingerprint.let {
+            it.method.apply {
+                val buttonIndex = it.instructionMatches[1].index
+                val buttonRegister =
+                    getInstruction<OneRegisterInstruction>(buttonIndex).registerA
+                addInstruction(
+                    buttonIndex + 1,
+                    "invoke-static {v$buttonRegister}, " +
+                        "$EXTENSION_TOGGLE_BUTTON->initializeButton(Landroid/view/View;)V",
                 )
             }
         }

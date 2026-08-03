@@ -35,6 +35,22 @@ internal object NiconicoCommentsOverlayFingerprint : Fingerprint(
     ),
 )
 
+private object PlayerBottomButtonParentFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "V",
+    filters = listOf(
+        resourceLiteral(ResourceType.ID, "time_bar_live_label"),
+    ),
+)
+
+internal object NiconicoCommentsBottomButtonFingerprint : Fingerprint(
+    classFingerprint = PlayerBottomButtonParentFingerprint,
+    filters = listOf(
+        resourceLiteral(ResourceType.ID, "fullscreen_button"),
+        opcode(Opcode.MOVE_RESULT_OBJECT),
+    ),
+)
+
 private object VideoIdParentFingerprint : Fingerprint(
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     returnType = "[L",
