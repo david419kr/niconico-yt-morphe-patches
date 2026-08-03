@@ -25,6 +25,10 @@ Only YouTube `21.04.223` is declared compatible, and that declaration remains un
 - Shorts, miniplayer, PiP, and cast-target overlays
 - target APK patch/apply/install smoke tests
 
+### Fixed application issue
+
+The first PoC bundle incorrectly looked up `accessibility_play` and `accessibility_pause` as Android `id` resources. YouTube declares both as `string` resources. The standalone resource mapper and video-state fingerprint now use `ResourceType.STRING`, matching the official hook implementation.
+
 ## Build
 
 Requirements:
@@ -72,10 +76,11 @@ The patch side owns the resource mapping and all YouTube fingerprints needed by 
 - Morphe patches Gradle plugin: `1.3.3`
 - Morphe patcher: `1.7.0`
 - `.\gradlew.bat buildAndroid --no-daemon`: passed
-- Generated `patches-1.0.0.mpp`: 695,959 bytes
-- SHA-256: `AF98904F0FD2EADEEE85069FC558798A358E212831D7EE7D879347B45331B6E5`
+- Generated `patches-1.0.0.mpp`: 696,042 bytes
+- SHA-256: `9671B94B4FC76DCEFC2DFDDB97C2AF6E9C976E62BE316045BCC17BE8964F4C49`
 - Embedded `extension.mpe`: valid DEX 039
 - JADX verification: controller and overlay classes, time/state hooks, and draw calls are present
+- JVM bytecode verification: both accessibility resources resolve through `ResourceType.STRING`
 
 These values describe the first local PoC build and will change after source updates. A successful bundle build does not prove that the fingerprints match a real YouTube APK.
 

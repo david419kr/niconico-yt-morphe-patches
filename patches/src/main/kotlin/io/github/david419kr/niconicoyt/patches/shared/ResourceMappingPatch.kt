@@ -37,7 +37,8 @@ import com.android.tools.smali.dexlib2.iface.instruction.WideLiteralInstruction
 import org.w3c.dom.Element
 
 internal enum class ResourceType(val value: String) {
-    ID("id");
+    ID("id"),
+    STRING("string");
 
     companion object {
         fun fromValue(value: String) = entries.firstOrNull { it.value == value }

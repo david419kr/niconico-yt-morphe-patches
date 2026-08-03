@@ -73,8 +73,8 @@ val niconicoCommentsPatch = bytecodePatch(
             parameters = listOf(controlsState),
             filters = listOf(
                 fieldAccess(definingClass = controlsState, type = videoState),
-                resourceLiteral(ResourceType.ID, "accessibility_play"),
-                resourceLiteral(ResourceType.ID, "accessibility_pause"),
+                resourceLiteral(ResourceType.STRING, "accessibility_play"),
+                resourceLiteral(ResourceType.STRING, "accessibility_pause"),
             ),
         ).let {
             it.method.apply {
