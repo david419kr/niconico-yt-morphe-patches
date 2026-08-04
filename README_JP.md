@@ -13,6 +13,11 @@ Android版YouTubeプレーヤー上に、ライブチャットとチャットリ
 
 ※ログインが必要な非公開、メンバー限定、年齢制限付きチャットなどには対応していません。
 
+<img width="480" height="412" alt="image" src="https://github.com/user-attachments/assets/aebf4f85-b6c4-40d0-8df0-3e2a75655b4f" />
+<img width="480" height="412" alt="image" src="https://github.com/user-attachments/assets/1e6fcc4c-1a60-499c-9c9b-deaced660d17" />
+
+https://github.com/user-attachments/assets/f29e2231-e159-43ad-8999-8451dfaef7f3
+
 ## 必要環境
 
 - Morphe

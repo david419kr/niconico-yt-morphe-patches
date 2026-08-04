@@ -13,6 +13,11 @@
 
 ※로그인이 필요한 비공개, 멤버 전용, 연령 제한 채팅 등은 지원하지 않습니다.
 
+<img width="480" height="412" alt="image" src="https://github.com/user-attachments/assets/aebf4f85-b6c4-40d0-8df0-3e2a75655b4f" />
+<img width="480" height="412" alt="image" src="https://github.com/user-attachments/assets/1e6fcc4c-1a60-499c-9c9b-deaced660d17" />
+
+https://github.com/user-attachments/assets/f29e2231-e159-43ad-8999-8451dfaef7f3
+
 ## 요구 사항
 
 - Morphe
