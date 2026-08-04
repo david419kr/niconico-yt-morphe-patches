@@ -14,7 +14,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -53,8 +52,6 @@ final class YoutubeChatSource implements Runnable {
     private static final long REPLAY_LOOKAHEAD_MS = 45_000;
     private static final long REPLAY_SEEK_THRESHOLD_MS = 12_000;
     private static final long REPLAY_START_MARGIN_MS = 5_000;
-    private static final long REPLAY_BASE_OFFSET_MS = 3_000;
-    private static final long REPLAY_CALCULATED_OFFSET_MAX_MS = 5_000;
     private static final int REPLAY_MAX_FETCHES_PER_UPDATE = 12;
     private static final int MAX_COMMENT_LENGTH = 200;
     private static final int MAX_SEEN_IDS = 4_096;
@@ -165,7 +162,6 @@ final class YoutubeChatSource implements Runnable {
 
     private void runReplay(PageState state) {
         Log.i(LOG_TAG, "Replay-chat source selected for " + videoId);
-        Log.i(LOG_TAG, "Replay sync correction: " + state.replayOffsetMs + " ms");
         Continuation initialContinuation = state.continuation;
         Continuation continuation = initialContinuation;
         long loadedUntilMs = -1;
@@ -215,8 +211,7 @@ final class YoutubeChatSource implements Runnable {
                 fetches++;
                 long playerOffsetMs = Math.max(
                         0,
-                        (hasFetched ? loadedUntilMs - REPLAY_START_MARGIN_MS : windowStartMs)
-                                + state.replayOffsetMs
+                        hasFetched ? loadedUntilMs - REPLAY_START_MARGIN_MS : windowStartMs
                 );
                 String previousContinuation = continuation.value;
                 long previousLoadedUntilMs = loadedUntilMs;
@@ -341,7 +336,7 @@ final class YoutubeChatSource implements Runnable {
         }
 
         if (liveChatRenderer == null) {
-            return new PageState(apiKey, clientVersion, context, null, false, 0);
+            return new PageState(apiKey, clientVersion, context, null, false);
         }
         if (replayContinuation != null) {
             try {
@@ -360,8 +355,7 @@ final class YoutubeChatSource implements Runnable {
                     clientVersion,
                     context,
                     replayContinuation,
-                    true,
-                    getReplayOffsetMs(playerResponse)
+                    true
             );
         }
 
@@ -371,7 +365,7 @@ final class YoutubeChatSource implements Runnable {
                 "invalidationContinuationData",
                 "reloadContinuationData"
         );
-        return new PageState(apiKey, clientVersion, context, continuation, false, 0);
+        return new PageState(apiKey, clientVersion, context, continuation, false);
     }
 
     private Continuation fetchAllMessagesReplayContinuation(String continuation)
@@ -496,8 +490,7 @@ final class YoutubeChatSource implements Runnable {
         }
 
         ReplayParseResult parsed = parseReplayComments(
-                liveChatContinuation.optJSONArray("actions"),
-                state.replayOffsetMs
+                liveChatContinuation.optJSONArray("actions")
         );
         Continuation next = findContinuation(
                 liveChatContinuation.opt("continuations"),
@@ -728,38 +721,6 @@ final class YoutubeChatSource implements Runnable {
                 : accessibilityData.optString("label", "");
     }
 
-    static long getReplayOffsetMs(JSONObject playerResponse) {
-        if (playerResponse == null) {
-            return REPLAY_BASE_OFFSET_MS;
-        }
-        JSONObject videoDetails = playerResponse.optJSONObject("videoDetails");
-        JSONObject microformat = playerResponse.optJSONObject("microformat");
-        JSONObject playerMicroformat = microformat == null
-                ? null
-                : microformat.optJSONObject("playerMicroformatRenderer");
-        JSONObject liveDetails = playerMicroformat == null
-                ? null
-                : playerMicroformat.optJSONObject("liveBroadcastDetails");
-        if (videoDetails == null || liveDetails == null) {
-            return REPLAY_BASE_OFFSET_MS;
-        }
-
-        try {
-            long startMs = Instant.parse(liveDetails.getString("startTimestamp")).toEpochMilli();
-            long endMs = Instant.parse(liveDetails.getString("endTimestamp")).toEpochMilli();
-            long durationMs = Math.round(
-                    Double.parseDouble(videoDetails.getString("lengthSeconds")) * 1_000
-            );
-            long offsetMs = endMs - startMs - durationMs;
-            long calculatedOffsetMs = offsetMs > 1_000
-                    ? Math.min(offsetMs, REPLAY_CALCULATED_OFFSET_MAX_MS)
-                    : 0;
-            return REPLAY_BASE_OFFSET_MS + calculatedOffsetMs;
-        } catch (Exception ignored) {
-            return REPLAY_BASE_OFFSET_MS;
-        }
-    }
-
     private static boolean isEndedLiveBroadcast(JSONObject playerResponse) {
         JSONObject microformat = playerResponse == null
                 ? null
@@ -847,10 +808,7 @@ final class YoutubeChatSource implements Runnable {
         return comments;
     }
 
-    static ReplayParseResult parseReplayComments(
-            JSONArray actions,
-            long replayOffsetMs
-    ) {
+    static ReplayParseResult parseReplayComments(JSONArray actions) {
         List<NiconicoComment> comments = new ArrayList<>();
         long maxVideoOffsetMs = -1;
         if (actions == null) {
@@ -872,8 +830,10 @@ final class YoutubeChatSource implements Runnable {
             } catch (Exception ignored) {
                 continue;
             }
-            long videoOffsetMs = Math.max(0, rawOffsetMs - replayOffsetMs);
-            maxVideoOffsetMs = Math.max(maxVideoOffsetMs, videoOffsetMs);
+            if (rawOffsetMs < 0) {
+                continue;
+            }
+            maxVideoOffsetMs = Math.max(maxVideoOffsetMs, rawOffsetMs);
 
             JSONArray innerActions = replayAction.optJSONArray("actions");
             if (innerActions == null) {
@@ -885,13 +845,25 @@ final class YoutubeChatSource implements Runnable {
                         ? null
                         : innerAction.optJSONObject("addChatItemAction");
                 JSONObject item = addAction == null ? null : addAction.optJSONObject("item");
-                NiconicoComment comment = parseComment(item, videoOffsetMs);
+                if (isBeforeReplayStart(item)) {
+                    continue;
+                }
+                NiconicoComment comment = parseComment(item, rawOffsetMs);
                 if (comment != null) {
                     comments.add(comment);
                 }
             }
         }
         return new ReplayParseResult(comments, maxVideoOffsetMs);
+    }
+
+    private static boolean isBeforeReplayStart(JSONObject item) {
+        JSONObject renderer = getCommentRenderer(item);
+        if (renderer == null) {
+            return false;
+        }
+        String timestampText = extractText(renderer.optJSONObject("timestampText")).trim();
+        return timestampText.startsWith("-") || timestampText.startsWith("\u2212");
     }
 
     private static NiconicoComment parseComment(JSONObject item, long videoOffsetMs) {
@@ -901,16 +873,7 @@ final class YoutubeChatSource implements Runnable {
 
         JSONObject paid = item.optJSONObject("liveChatPaidMessageRenderer");
         JSONObject membership = item.optJSONObject("liveChatMembershipItemRenderer");
-        JSONObject renderer = item.optJSONObject("liveChatTextMessageRenderer");
-        if (renderer == null) {
-            renderer = paid;
-        }
-        if (renderer == null) {
-            renderer = membership;
-        }
-        if (renderer == null) {
-            renderer = item.optJSONObject("liveChatViewerEngagementMessageRenderer");
-        }
+        JSONObject renderer = getCommentRenderer(item);
         if (renderer == null) {
             return null;
         }
@@ -930,6 +893,23 @@ final class YoutubeChatSource implements Runnable {
                 backgroundColor,
                 videoOffsetMs
         );
+    }
+
+    private static JSONObject getCommentRenderer(JSONObject item) {
+        if (item == null) {
+            return null;
+        }
+        JSONObject renderer = item.optJSONObject("liveChatTextMessageRenderer");
+        if (renderer == null) {
+            renderer = item.optJSONObject("liveChatPaidMessageRenderer");
+        }
+        if (renderer == null) {
+            renderer = item.optJSONObject("liveChatMembershipItemRenderer");
+        }
+        if (renderer == null) {
+            renderer = item.optJSONObject("liveChatViewerEngagementMessageRenderer");
+        }
+        return renderer;
     }
 
     private static String extractText(JSONObject textRenderer) {
@@ -1096,22 +1076,19 @@ final class YoutubeChatSource implements Runnable {
         final JSONObject context;
         final Continuation continuation;
         final boolean replay;
-        final long replayOffsetMs;
 
         PageState(
                 String apiKey,
                 String clientVersion,
                 JSONObject context,
                 Continuation continuation,
-                boolean replay,
-                long replayOffsetMs
+                boolean replay
         ) {
             this.apiKey = apiKey;
             this.clientVersion = clientVersion;
             this.context = context;
             this.continuation = continuation;
             this.replay = replay;
-            this.replayOffsetMs = replayOffsetMs;
         }
     }
 

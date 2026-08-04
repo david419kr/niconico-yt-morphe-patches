@@ -8,8 +8,8 @@ Version 1.3.1 builds on the device-tested replay renderer with a lower-latency l
 
 - guest access to public live chat through WEB Innertube `get_live_chat`;
 - guest access to public archived chat through `get_live_chat_replay`;
-- replay scheduling from `videoOffsetTimeMsec`, with a 45-second lookahead window and seek reset;
-- a three-second base replay correction plus the original calculated 0-5 second correction, for a final 3-8 second offset;
+- exact replay scheduling from YouTube's raw `videoOffsetTimeMsec`, with a 45-second lookahead window and seek reset;
+- filtering of pre-zero countdown chat through each renderer's negative `timestampText`, while preserving real `0:00` comments;
 - text plus YouTube custom-emoji bitmaps, membership highlighting, and Super Chat backgrounds;
 - duplicate suppression without deleting active or lookahead replay comments;
 - live continuation requests every 100-250 ms instead of waiting for multi-second server timeouts;
@@ -43,7 +43,7 @@ The extension logs under the `NiconicoComments` tag. Useful checks include:
 adb logcat -s NiconicoComments
 ```
 
-Expected source-selection messages include `Starting public live/replay chat source`, `Received ... live-chat comments`, `Replay-chat source selected`, and `Replay sync correction: ... ms`. If a normal video or a stream without public chat is opened, `No public live/replay continuation found` is expected.
+Expected source-selection messages include `Starting public live/replay chat source`, `Received ... live-chat comments`, and `Replay-chat source selected`. If a normal video or a stream without public chat is opened, `No public live/replay continuation found` is expected.
 
 ## Build and test
 
@@ -107,12 +107,12 @@ Verified on 2026-08-04:
 - official template base: `9f98aacd6cd1926db567f5d13f921e6cb90a4b8a`
 - Morphe patches Gradle plugin: `1.3.3`
 - Morphe patcher: `1.7.0`
-- ten parser/scheduler/polling/localization fixtures: passed with `testDebugUnitTest`
+- eleven parser/scheduler/polling/localization fixtures: passed with `testDebugUnitTest`
 - public live Innertube contract: HTTP 200, 77 actions, and a next continuation
 - public replay Innertube contract: HTTP 200, 44 replay actions, and a next continuation
 - `buildAndroid`: passed with Android Studio JBR 21
-- generated MPP: `patches-1.3.1.mpp`, 719,560 bytes
-- SHA-256: `BEED434DD23F7DF1F25DB422AF8660F0925FAF56BF58D254E7B4132247AD2F7C`
+- generated MPP: `patches-1.3.1.mpp`, 719,439 bytes
+- SHA-256: `E1F949958A66B179605A35600DBDC394C09A43C6ADA160EAA25838DD0940EC7B`
 
 The live/replay network checks validate the current public WEB response contract from the development machine. They do not replace an Android device smoke test of the newly generated bundle.
 

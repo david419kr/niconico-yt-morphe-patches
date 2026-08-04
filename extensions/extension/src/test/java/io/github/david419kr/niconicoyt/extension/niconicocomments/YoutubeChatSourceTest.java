@@ -83,39 +83,56 @@ public class YoutubeChatSourceTest {
     }
 
     @Test
-    public void parsesReplayOffsetAndNestedChatAction() throws Exception {
+    public void preservesExactReplayOffsetAndNestedChatAction() throws Exception {
         JSONArray actions = new JSONArray("[{\"replayChatItemAction\":{"
-                + "\"videoOffsetTimeMsec\":\"15000\",\"actions\":["
+                + "\"videoOffsetTimeMsec\":\"7449\",\"actions\":["
                 + "{\"addChatItemAction\":{\"item\":{\"liveChatTextMessageRenderer\":{"
-                + "\"id\":\"replay\",\"message\":{\"simpleText\":\"at 13 seconds\"}}}}}]}}]");
+                + "\"id\":\"replay\",\"timestampText\":{\"simpleText\":\"0:07\"},"
+                + "\"message\":{\"simpleText\":\"at seven seconds\"}}}}}]}}]");
 
         YoutubeChatSource.ReplayParseResult result =
-                YoutubeChatSource.parseReplayComments(actions, 2_000);
+                YoutubeChatSource.parseReplayComments(actions);
 
-        assertEquals(13_000, result.maxVideoOffsetMs);
+        assertEquals(7_449, result.maxVideoOffsetMs);
         assertEquals(1, result.comments.size());
-        assertEquals(13_000, result.comments.get(0).videoOffsetMs);
-        assertEquals("at 13 seconds", result.comments.get(0).text);
+        assertEquals(7_449, result.comments.get(0).videoOffsetMs);
+        assertEquals("at seven seconds", result.comments.get(0).text);
     }
 
     @Test
-    public void appliesThreeSecondBasePlusCalculatedReplayCorrection() throws Exception {
-        JSONObject zeroCalculatedOffset = new JSONObject("{"
-                + "\"videoDetails\":{\"lengthSeconds\":\"30\"},"
-                + "\"microformat\":{\"playerMicroformatRenderer\":{"
-                + "\"liveBroadcastDetails\":{"
-                + "\"startTimestamp\":\"2026-08-04T00:00:00Z\","
-                + "\"endTimestamp\":\"2026-08-04T00:00:30Z\"}}}}}");
-        JSONObject cappedCalculatedOffset = new JSONObject("{"
-                + "\"videoDetails\":{\"lengthSeconds\":\"20\"},"
-                + "\"microformat\":{\"playerMicroformatRenderer\":{"
-                + "\"liveBroadcastDetails\":{"
-                + "\"startTimestamp\":\"2026-08-04T00:00:00Z\","
-                + "\"endTimestamp\":\"2026-08-04T00:00:30Z\"}}}}}");
+    public void discardsNegativeReplayTimestampButKeepsRealZero() throws Exception {
+        JSONArray actions = new JSONArray("["
+                + "{\"replayChatItemAction\":{\"videoOffsetTimeMsec\":\"0\",\"actions\":["
+                + "{\"addChatItemAction\":{\"item\":{\"liveChatTextMessageRenderer\":{"
+                + "\"id\":\"countdown\",\"timestampText\":{\"simpleText\":\"-0:31\"},"
+                + "\"message\":{\"simpleText\":\"before start\"}}}}}]}},"
+                + "{\"replayChatItemAction\":{\"videoOffsetTimeMsec\":\"0\",\"actions\":["
+                + "{\"addChatItemAction\":{\"item\":{\"liveChatTextMessageRenderer\":{"
+                + "\"id\":\"zero\",\"timestampText\":{\"simpleText\":\"0:00\"},"
+                + "\"message\":{\"simpleText\":\"at start\"}}}}}]}}]");
 
-        assertEquals(3_000, YoutubeChatSource.getReplayOffsetMs(zeroCalculatedOffset));
-        assertEquals(8_000, YoutubeChatSource.getReplayOffsetMs(cappedCalculatedOffset));
-        assertEquals(3_000, YoutubeChatSource.getReplayOffsetMs(null));
+        YoutubeChatSource.ReplayParseResult result =
+                YoutubeChatSource.parseReplayComments(actions);
+
+        assertEquals(0, result.maxVideoOffsetMs);
+        assertEquals(1, result.comments.size());
+        assertEquals("zero", result.comments.get(0).id);
+        assertEquals(0, result.comments.get(0).videoOffsetMs);
+    }
+
+    @Test
+    public void advancesReplayWindowWhenOnlyPreStartCommentsAreFiltered() throws Exception {
+        JSONArray actions = new JSONArray("[{\"replayChatItemAction\":{"
+                + "\"videoOffsetTimeMsec\":\"0\",\"actions\":["
+                + "{\"addChatItemAction\":{\"item\":{\"liveChatTextMessageRenderer\":{"
+                + "\"id\":\"countdown\",\"timestampText\":{\"simpleText\":\"-1:00:34\"},"
+                + "\"message\":{\"simpleText\":\"before start\"}}}}}]}}]");
+
+        YoutubeChatSource.ReplayParseResult result =
+                YoutubeChatSource.parseReplayComments(actions);
+
+        assertEquals(0, result.maxVideoOffsetMs);
+        assertTrue(result.comments.isEmpty());
     }
 
     @Test
