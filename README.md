@@ -13,6 +13,11 @@ A Morphe patch that displays YouTube live chat and chat replay as Niconico-style
 
 ※Private, members-only, age-restricted, and other chats that require a signed-in account are not supported.
 
+<img width="480" height="412" alt="image" src="https://github.com/user-attachments/assets/aebf4f85-b6c4-40d0-8df0-3e2a75655b4f" />
+<img width="480" height="412" alt="image" src="https://github.com/user-attachments/assets/1e6fcc4c-1a60-499c-9c9b-deaced660d17" />
+
+https://github.com/user-attachments/assets/f29e2231-e159-43ad-8999-8451dfaef7f3
+
 ## Requirements
 
 - Morphe
