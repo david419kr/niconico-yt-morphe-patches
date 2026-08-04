@@ -19,6 +19,7 @@ public final class NiconicoCommentsController {
     private static final String OPACITY_KEY = "opacity_percent";
     private static final long SEEK_THRESHOLD_MS = 12_000;
     private static final Object SOURCE_LOCK = new Object();
+    private static final Object VIDEO_CLOCK_LOCK = new Object();
 
     static final int DEFAULT_FONT_SIZE_SP = 20;
     static final int MIN_FONT_SIZE_SP = 12;
@@ -40,6 +41,7 @@ public final class NiconicoCommentsController {
     private static volatile boolean preferenceLoaded;
     private static volatile long sampledVideoTimeMs = -1;
     private static volatile long sampleElapsedRealtimeMs;
+    private static volatile double playbackRate = 1.0;
 
     private static YoutubeChatSource activeSource;
     private static Thread activeSourceThread;
@@ -110,8 +112,10 @@ public final class NiconicoCommentsController {
         }
 
         currentVideoId = nextVideoId;
-        sampledVideoTimeMs = -1;
-        sampleElapsedRealtimeMs = SystemClock.elapsedRealtime();
+        synchronized (VIDEO_CLOCK_LOCK) {
+            sampledVideoTimeMs = -1;
+            sampleElapsedRealtimeMs = SystemClock.elapsedRealtime();
+        }
         synchronized (SOURCE_LOCK) {
             completedSourceVideoId = "";
             stopChatSourceLocked();
@@ -139,23 +143,30 @@ public final class NiconicoCommentsController {
     /** Injection point receiving YouTube's play/pause state. */
     public static void setVideoState(Enum<?> videoState) {
         boolean nextPlaying = videoState != null && "PLAYING".equals(videoState.name());
-        if (videoPlaying && !nextPlaying) {
-            sampledVideoTimeMs = getVideoTime();
+        long nowMs = SystemClock.elapsedRealtime();
+        synchronized (VIDEO_CLOCK_LOCK) {
+            if (videoPlaying && !nextPlaying) {
+                sampledVideoTimeMs = getVideoTimeLocked(nowMs);
+            }
+            sampleElapsedRealtimeMs = nowMs;
+            videoPlaying = nextPlaying;
         }
-        sampleElapsedRealtimeMs = SystemClock.elapsedRealtime();
-        videoPlaying = nextPlaying;
         updateViewState();
         maybeStartChatSource();
     }
 
     /** Injection point receiving YouTube's periodic video-time sample. */
     public static void setVideoTime(long videoTimeMs) {
-        long predictedVideoTimeMs = getVideoTime();
-        boolean seeked = predictedVideoTimeMs >= 0
-                && Math.abs(videoTimeMs - predictedVideoTimeMs) > SEEK_THRESHOLD_MS;
+        long nowMs = SystemClock.elapsedRealtime();
+        boolean seeked;
+        synchronized (VIDEO_CLOCK_LOCK) {
+            long predictedVideoTimeMs = getVideoTimeLocked(nowMs);
+            seeked = predictedVideoTimeMs >= 0
+                    && Math.abs(videoTimeMs - predictedVideoTimeMs) > SEEK_THRESHOLD_MS;
 
-        sampledVideoTimeMs = videoTimeMs;
-        sampleElapsedRealtimeMs = SystemClock.elapsedRealtime();
+            sampledVideoTimeMs = videoTimeMs;
+            sampleElapsedRealtimeMs = nowMs;
+        }
         NiconicoCommentsOverlayView view = overlayViewRef.get();
         if (view != null) {
             if (seeked) {
@@ -166,12 +177,57 @@ public final class NiconicoCommentsController {
         }
     }
 
+    /** Injection point receiving every playback-rate change applied by YouTube. */
+    public static void setPlaybackRate(float nextPlaybackRate) {
+        double sanitizedRate = sanitizePlaybackRate(nextPlaybackRate);
+        long nowMs = SystemClock.elapsedRealtime();
+        synchronized (VIDEO_CLOCK_LOCK) {
+            if (sampledVideoTimeMs >= 0 && videoPlaying) {
+                sampledVideoTimeMs = getVideoTimeLocked(nowMs);
+            }
+            sampleElapsedRealtimeMs = nowMs;
+            playbackRate = sanitizedRate;
+        }
+
+        NiconicoCommentsOverlayView view = overlayViewRef.get();
+        if (view != null) {
+            view.postInvalidateOnAnimation();
+        }
+    }
+
     static long getVideoTime() {
+        long nowMs = SystemClock.elapsedRealtime();
+        synchronized (VIDEO_CLOCK_LOCK) {
+            return getVideoTimeLocked(nowMs);
+        }
+    }
+
+    private static long getVideoTimeLocked(long nowMs) {
         long sampledTime = sampledVideoTimeMs;
         if (sampledTime < 0 || !videoPlaying) {
             return sampledTime;
         }
-        return sampledTime + Math.max(0, SystemClock.elapsedRealtime() - sampleElapsedRealtimeMs);
+        return interpolateVideoTime(
+                sampledTime,
+                Math.max(0, nowMs - sampleElapsedRealtimeMs),
+                playbackRate
+        );
+    }
+
+    static long interpolateVideoTime(long sampledTimeMs, long elapsedRealtimeMs, double rate) {
+        if (elapsedRealtimeMs <= 0) {
+            return sampledTimeMs;
+        }
+
+        double advancedVideoTimeMs = elapsedRealtimeMs * sanitizePlaybackRate(rate);
+        if (advancedVideoTimeMs >= Long.MAX_VALUE - sampledTimeMs) {
+            return Long.MAX_VALUE;
+        }
+        return sampledTimeMs + Math.round(advancedVideoTimeMs);
+    }
+
+    static double sanitizePlaybackRate(double rate) {
+        return rate > 0.0 && !Double.isNaN(rate) && !Double.isInfinite(rate) ? rate : 1.0;
     }
 
     static boolean isCommentsEnabled() {

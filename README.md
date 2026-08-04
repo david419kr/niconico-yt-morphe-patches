@@ -19,7 +19,7 @@ Version 1.3.1 builds on the device-tested replay renderer with a lower-latency l
 - a persistent `弾` on/off button beside the lower-right player controls;
 - font-size and opacity controls on long press of `弾`, persisted in `SharedPreferences`;
 - Korean, English, and Japanese quick-settings labels selected from YouTube's app locale, with English used for every other language;
-- playback-time interpolation, pause/resume behavior, and regular/fullscreen visibility handling.
+- playback-rate-aware time interpolation at arbitrary positive speeds, pause/resume behavior, and regular/fullscreen visibility handling.
 
 When the official Morphe runtime button host is present, the toggle registers with that shared host so it is laid out beside the other Morphe custom buttons. If that class is absent, the independent extension uses its own fullscreen-button-relative layout fallback. The toggle defaults to on and is stored in YouTube's local `SharedPreferences`.
 
@@ -31,7 +31,6 @@ Only YouTube `21.04.223` is declared compatible. Device feedback reports that th
 
 - logged-in, members-only, age-restricted, or private chat authentication
 - settings for speed and comment limits
-- playback-speed-aware interpolation between YouTube time samples
 - Shorts, miniplayer, PiP, and cast-target overlays
 - chat message sending
 
@@ -94,6 +93,7 @@ extensions/extension/src/main/java/io/github/david419kr/niconicoyt/extension/nic
 
 extensions/extension/src/test/java/io/github/david419kr/niconicoyt/extension/niconicocomments/
   CommentScheduleTest.java
+  NiconicoCommentsControllerTest.java
   QuickSettingsStringsTest.java
   YoutubeChatSourceTest.java
 ```
@@ -107,12 +107,12 @@ Verified on 2026-08-04:
 - official template base: `9f98aacd6cd1926db567f5d13f921e6cb90a4b8a`
 - Morphe patches Gradle plugin: `1.3.3`
 - Morphe patcher: `1.7.0`
-- eleven parser/scheduler/polling/localization fixtures: passed with `testDebugUnitTest`
+- seventeen parser/scheduler/polling/localization/playback-clock fixtures: passed with `testDebugUnitTest`
 - public live Innertube contract: HTTP 200, 77 actions, and a next continuation
 - public replay Innertube contract: HTTP 200, 44 replay actions, and a next continuation
 - `buildAndroid`: passed with Android Studio JBR 21
-- generated MPP: `patches-1.3.1.mpp`, 719,439 bytes
-- SHA-256: `E1F949958A66B179605A35600DBDC394C09A43C6ADA160EAA25838DD0940EC7B`
+- generated MPP: `patches-1.3.1.mpp`, 728,808 bytes
+- SHA-256: `5207E6B918573C2F97CB680767B9D0E5AB998B88ECF345C42AE5510DF85BC1EE`
 
 The live/replay network checks validate the current public WEB response contract from the development machine. They do not replace an Android device smoke test of the newly generated bundle.
 

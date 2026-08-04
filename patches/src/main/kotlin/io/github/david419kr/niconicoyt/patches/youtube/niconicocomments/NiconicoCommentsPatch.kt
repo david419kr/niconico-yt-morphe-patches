@@ -9,6 +9,7 @@ import app.morphe.patcher.patch.bytecodePatch
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
+import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import io.github.david419kr.niconicoyt.patches.shared.Constants.YOUTUBE
 import io.github.david419kr.niconicoyt.patches.shared.ResourceType
 import io.github.david419kr.niconicoyt.patches.shared.resourceLiteral
@@ -112,5 +113,23 @@ val niconicoCommentsPatch = bytecodePatch(
                 2,
                 "invoke-static {p1, p2}, $EXTENSION_CONTROLLER->setVideoTime(J)V",
             )
+
+        val setPlaybackSpeedReference =
+            PlaybackSpeedOnItemClickFingerprint.instructionMatches
+                .last()
+                .instruction
+                .let { (it as ReferenceInstruction).reference as MethodReference }
+        mutableClassDefBy(setPlaybackSpeedReference.definingClass)
+            .methods
+            .first { it.name == setPlaybackSpeedReference.name }
+            .addInstruction(
+                0,
+                "invoke-static {p1}, $EXTENSION_CONTROLLER->setPlaybackRate(F)V",
+            )
+
+        PlaybackRateApplierFingerprint.method.addInstruction(
+            0,
+            "invoke-static {p1}, $EXTENSION_CONTROLLER->setPlaybackRate(F)V",
+        )
     }
 }
