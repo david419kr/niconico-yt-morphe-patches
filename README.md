@@ -1,121 +1,81 @@
-# Niconico YT Comments Patches
+[English](README.md) | [한국어](README_KR.md) | [日本語](README_JP.md)
 
-An independent patch bundle that adds Niconico-style scrolling live and replay chat to the Android YouTube app. It is built from the official Morphe third-party patch template, but is a separate project and is not authored or supported by the Morphe project.
+# Niconico YT Comments
 
-## Current status
+A Morphe patch that displays YouTube live chat and chat replay as Niconico-style scrolling comments over the Android YouTube player.
 
-Version 1.3.1 builds on the device-tested replay renderer with a lower-latency live path and dynamic appearance updates. Enabling `Niconico-style live/replay comments (Experimental)` now provides:
+## Features
 
-- guest access to public live chat through WEB Innertube `get_live_chat`;
-- guest access to public archived chat through `get_live_chat_replay`;
-- exact replay scheduling from YouTube's raw `videoOffsetTimeMsec`, with a 45-second lookahead window and seek reset;
-- filtering of pre-zero countdown chat through each renderer's negative `timestampText`, while preserving real `0:00` comments;
-- text plus YouTube custom-emoji bitmaps, membership highlighting, and Super Chat backgrounds;
-- duplicate suppression without deleting active or lookahead replay comments;
-- live continuation requests every 100-250 ms instead of waiting for multi-second server timeouts;
-- live batches paced at 35-160 ms per comment with at most 750 ms of visual backlog;
-- shuffled screen lanes instead of top-to-bottom staircase placement;
-- immediate lane redistribution when rotation or fullscreen changes the overlay height;
-- a persistent `弾` on/off button beside the lower-right player controls;
-- font-size and opacity controls on long press of `弾`, persisted in `SharedPreferences`;
-- Korean, English, and Japanese quick-settings labels selected from YouTube's app locale, with English used for every other language;
-- playback-rate-aware time interpolation at arbitrary positive speeds, pause/resume behavior, and regular/fullscreen visibility handling.
+- Public live chat and chat replay comments
+- YouTube custom emojis, membership comments, and Super Chat colors
+- A `弾` player button to turn comments on or off
+- Font size and opacity settings by long-pressing the `弾` button
 
-When the official Morphe runtime button host is present, the toggle registers with that shared host so it is laid out beside the other Morphe custom buttons. If that class is absent, the independent extension uses its own fullscreen-button-relative layout fallback. The toggle defaults to on and is stored in YouTube's local `SharedPreferences`.
+※Private, members-only, age-restricted, and other chats that require a signed-in account are not supported.
 
-The previous three hardcoded comments have been removed. Videos without a public live or replay continuation intentionally show no comments.
+## Requirements
 
-Only YouTube `21.04.223` is declared compatible. Device feedback reports that the 1.3.0 replay and live paths, resize handling, and opacity control are working well overall. Version 1.3.1 removes the live polling startup log and localizes the quick-settings dialog.
+- Morphe
+- Android 9 or later (API 28+)
+- An unmodified YouTube `21.04.223` APK
+- Expert mode enabled in Morphe
 
-## Not implemented yet
+## Installation
 
-- logged-in, members-only, age-restricted, or private chat authentication
-- settings for speed and comment limits
-- Shorts, miniplayer, PiP, and cast-target overlays
-- chat message sending
+### 1. Enable Expert mode
 
-## Runtime diagnostics
-
-The extension logs under the `NiconicoComments` tag. Useful checks include:
-
-```powershell
-adb logcat -s NiconicoComments
-```
-
-Expected source-selection messages include `Starting public live/replay chat source`, `Received ... live-chat comments`, and `Replay-chat source selected`. If a normal video or a stream without public chat is opened, `No public live/replay continuation found` is expected.
-
-## Build and test
-
-Requirements:
-
-- JDK 21; the Android Studio JBR is the verified local runtime
-- Android SDK
-- GitHub Package credentials as described by the [Morphe development documentation](https://github.com/MorpheApp/morphe-documentation/blob/main/docs/morphe-development/README.md)
-
-For local source development, the build automatically uses sibling checkouts named `morphe-patches-gradle-plugin` and `morphe-patcher` when present. This avoids downloading those two components from the package registry, but the plugin's repository configuration still expects `GITHUB_ACTOR` and `GITHUB_TOKEN`.
-
-```powershell
-$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-$env:ANDROID_HOME = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
-$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
-$env:GITHUB_ACTOR = gh api user --jq .login
-$env:GITHUB_TOKEN = gh auth token
-
-.\gradlew.bat :extensions:extension:testDebugUnitTest --no-daemon
-.\gradlew.bat buildAndroid --no-daemon
-```
-
-The standalone bundle is generated at:
+This patch is not selected automatically in Simple mode. In Morphe, open:
 
 ```text
-patches/build/libs/patches-1.3.1.mpp
+Settings → Advanced → Expert settings → Expert mode
 ```
 
-## Structure
+Enable it and accept the confirmation message.
+
+### 2. Add the patch source
+
+#### Remote source (recommended)
+
+In Morphe, open:
 
 ```text
-patches/src/main/kotlin/io/github/david419kr/niconicoyt/patches/
-  shared/
-    Constants.kt
-    ResourceMappingPatch.kt
-  youtube/niconicocomments/
-    Fingerprints.kt
-    NiconicoCommentsPatch.kt
-
-extensions/extension/src/main/java/io/github/david419kr/niconicoyt/extension/niconicocomments/
-  NiconicoComment.java
-  CommentSchedule.java
-  NiconicoCommentsController.java
-  NiconicoCommentsOverlayView.java
-  NiconicoCommentsToggleButton.java
-  QuickSettingsStrings.java
-  YoutubeChatSource.java
-
-extensions/extension/src/test/java/io/github/david419kr/niconicoyt/extension/niconicocomments/
-  CommentScheduleTest.java
-  NiconicoCommentsControllerTest.java
-  QuickSettingsStringsTest.java
-  YoutubeChatSourceTest.java
+Sources → ＋ → Remote
 ```
 
-The patch side owns resource mapping and all YouTube fingerprints required by the bundle. The extension side owns network access, JSON parsing, replay-window management, preferences, the player button, and drawing. It is compiled into `extensions/extension.mpe`, embedded in the generated `.mpp`, and merged into the patched APK when the patch is enabled.
+Enter this repository URL and tap **Add**:
 
-## Verified locally
+```text
+https://github.com/david419kr/niconico-yt-morphe-patches
+```
 
-Verified on 2026-08-04:
+You can also use [Open in Morphe](https://morphe.software/add-source?github=david419kr%2Fniconico-yt-morphe-patches&name=Niconico%20YT%20Comments) on your Android device.
 
-- official template base: `9f98aacd6cd1926db567f5d13f921e6cb90a4b8a`
-- Morphe patches Gradle plugin: `1.3.3`
-- Morphe patcher: `1.7.0`
-- seventeen parser/scheduler/polling/localization/playback-clock fixtures: passed with `testDebugUnitTest`
-- public live Innertube contract: HTTP 200, 77 actions, and a next continuation
-- public replay Innertube contract: HTTP 200, 44 replay actions, and a next continuation
-- `buildAndroid`: passed with Android Studio JBR 21
-- generated MPP: `patches-1.3.1.mpp`, 728,808 bytes
-- SHA-256: `5207E6B918573C2F97CB680767B9D0E5AB998B88ECF345C42AE5510DF85BC1EE`
+#### Local `.mpp` source
 
-The live/replay network checks validate the current public WEB response contract from the development machine. They do not replace an Android device smoke test of the newly generated bundle.
+1. Download `patches-1.3.1.mpp` from [GitHub Releases](https://github.com/david419kr/niconico-yt-morphe-patches/releases).
+2. Open `Sources → ＋ → Local` in Morphe.
+3. Select the downloaded `.mpp` file and tap **Add**.
 
-## License
+Do not rename or repackage the file. You can also open the `.mpp` directly from an Android file manager and choose Morphe.
 
-This project is licensed under [GNU GPLv3](LICENSE) with the notices in [NOTICE](NOTICE). The resource mapping implementation retains its file-specific attribution and Section 7 notice. The browser extension that inspired the feature is [david419kr/niconico-yt](https://github.com/david419kr/niconico-yt), licensed under MIT.
+### 3. Patch YouTube
+
+1. Select **YouTube** on the Morphe home screen.
+2. Select version `21.04.223` and provide the unmodified `.apk` file.
+3. Open the **Morphe Patches** tab and enable the recommended patches.
+4. Open the **Niconico YT Comments Patches** tab and enable:
+
+   ```text
+   Niconico-style live/replay comments (Experimental)
+   ```
+
+5. Tap **Proceed to patching**.
+6. Confirm the multiple patch sources warning. Using the official Morphe patches and this patch together is intentional.
+7. Install the patched APK. If Android asks for permission to install unknown apps, allow Morphe to install it.
+
+Using the official Morphe recommended patches together with this patch is recommended for non-root devices. They provide the usual package-name and sign-in support that this comment-only patch does not include.
+
+## Updating
+
+- **Remote source:** Open `Sources`, select the source, and tap **Update**.
+- **Local source:** Remove the existing source, download the new `.mpp`, and add it again.
