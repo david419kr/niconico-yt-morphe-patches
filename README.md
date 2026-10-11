@@ -22,8 +22,10 @@ https://github.com/user-attachments/assets/f29e2231-e159-43ad-8999-8451dfaef7f3
 
 - Morphe
 - Android 9 or later (API 28+)
-- An unmodified YouTube `21.04.223` APK
+- An unmodified YouTube `21.20.405` APK (`21.04.223` remains supported)
 - Expert mode enabled in Morphe
+
+Bundle `1.3.2` fixes playback-speed fingerprint matching when used with the official Morphe patches. Patching and APK rebuilding were verified on `21.20.405` with Morphe Patches `1.47.0`. Device playback and the older APK were not retested in this update.
 
 ## Installation
 
@@ -57,7 +59,7 @@ You can also use [Open in Morphe](https://morphe.software/add-source?github=davi
 
 #### Local `.mpp` source
 
-1. Download `patches-1.3.1.mpp` from [GitHub Releases](https://github.com/david419kr/niconico-yt-morphe-patches/releases).
+1. Download `patches-1.3.2.mpp` from [the latest GitHub Release](https://github.com/david419kr/niconico-yt-morphe-patches/releases/latest).
 2. Open `Sources → ＋ → Local` in Morphe.
 3. Select the downloaded `.mpp` file and tap **Add**.
 
@@ -66,7 +68,7 @@ Do not rename or repackage the file. You can also open the `.mpp` directly from 
 ### 3. Patch YouTube
 
 1. Select **YouTube** on the Morphe home screen.
-2. Select version `21.04.223` and provide the unmodified `.apk` file.
+2. Select version `21.20.405` and provide the unmodified `.apk` file. If staying on `21.04.223`, use official patches that support that version.
 3. Open the **Morphe Patches** tab and enable the recommended patches.
 4. Open the **Niconico YT Comments Patches** tab and enable:
 
@@ -82,5 +84,5 @@ Using the official Morphe recommended patches together with this patch is recomm
 
 ## Updating
 
-- **Remote source:** Open `Sources`, select the source, and tap **Update**.
+- **Remote source:** Open `Sources`, select **Niconico YT Comments Patches**, and tap **Update**. Confirm version `1.3.2`, then patch the unmodified YouTube APK again. The repository URL above always points to the current published bundle.
 - **Local source:** Remove the existing source, download the new `.mpp`, and add it again.

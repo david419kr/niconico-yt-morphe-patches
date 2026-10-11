@@ -22,8 +22,10 @@ https://github.com/user-attachments/assets/f29e2231-e159-43ad-8999-8451dfaef7f3
 
 - Morphe
 - Android 9以降（API 28+）
-- 未改変のYouTube `21.04.223` APK
+- 未改変のYouTube `21.20.405` APK（`21.04.223`の対応も維持）
 - MorpheのExpert modeを有効化
+
+バンドル`1.3.2`は、公式Morpheパッチとの併用時に発生する再生速度のfingerprint照合エラーを修正します。YouTube `21.20.405`とMorphe Patches `1.47.0`の組み合わせで、パッチ適用とAPK再構築を確認しました。今回の更新では、端末での再生動作と旧バージョンのAPKは再検証していません。
 
 ## インストール方法
 
@@ -57,7 +59,7 @@ Android端末では、[Morpheで開く](https://morphe.software/add-source?githu
 
 #### ローカル`.mpp`ソース
 
-1. [GitHub Releases](https://github.com/david419kr/niconico-yt-morphe-patches/releases)から`patches-1.3.1.mpp`をダウンロードします。
+1. [最新のGitHub Release](https://github.com/david419kr/niconico-yt-morphe-patches/releases/latest)から`patches-1.3.2.mpp`をダウンロードします。
 2. Morpheで`Sources → ＋ → Local`を開きます。
 3. ダウンロードした`.mpp`ファイルを選択し、**Add**をタップします。
 
@@ -66,7 +68,7 @@ Android端末では、[Morpheで開く](https://morphe.software/add-source?githu
 ### 3. YouTubeをパッチする
 
 1. Morpheのホーム画面で**YouTube**を選択します。
-2. バージョン`21.04.223`を選び、未改変の`.apk`ファイルを指定します。
+2. バージョン`21.20.405`を選び、未改変の`.apk`ファイルを指定します。`21.04.223`を使い続ける場合は、そのバージョンに対応する公式パッチと組み合わせてください。
 3. **Morphe Patches**タブで推奨パッチを有効にします。
 4. **Niconico YT Comments Patches**タブで次のパッチを有効にします。
 
@@ -82,5 +84,5 @@ Android端末では、[Morpheで開く](https://morphe.software/add-source?githu
 
 ## 更新方法
 
-- **リモートソース:** `Sources`でソースを選び、**Update**をタップします。
+- **リモートソース:** `Sources`で**Niconico YT Comments Patches**を選び、**Update**をタップします。バージョン`1.3.2`を確認し、未改変のYouTube APKに再度パッチを適用します。上記リポジトリURLは、常に現在公開されているバンドルを参照します。
 - **ローカルソース:** 既存のソースを削除し、新しい`.mpp`をダウンロードして追加し直します。

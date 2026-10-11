@@ -22,8 +22,10 @@ https://github.com/user-attachments/assets/f29e2231-e159-43ad-8999-8451dfaef7f3
 
 - Morphe
 - Android 9 이상(API 28+)
-- 수정되지 않은 YouTube `21.04.223` APK
+- 수정되지 않은 YouTube `21.20.405` APK (`21.04.223` 지원도 유지)
 - Morphe Expert mode 활성화
+
+번들 `1.3.2`는 공식 Morphe 패치와 함께 사용할 때 발생하는 재생속도 fingerprint 매칭 오류를 해결합니다. YouTube `21.20.405`와 Morphe Patches `1.47.0` 조합에서 패치 적용과 APK 재생성을 검증했습니다. 이번 업데이트에서 기기 재생 동작과 구버전 APK는 다시 검증하지 않았습니다.
 
 ## 설치 방법
 
@@ -57,7 +59,7 @@ https://github.com/david419kr/niconico-yt-morphe-patches
 
 #### 로컬 `.mpp` 소스
 
-1. [GitHub Releases](https://github.com/david419kr/niconico-yt-morphe-patches/releases)에서 `patches-1.3.1.mpp`를 다운로드합니다.
+1. [최신 GitHub Release](https://github.com/david419kr/niconico-yt-morphe-patches/releases/latest)에서 `patches-1.3.2.mpp`를 다운로드합니다.
 2. Morphe에서 `Sources → ＋ → Local`을 엽니다.
 3. 다운로드한 `.mpp` 파일을 선택하고 **Add**를 누릅니다.
 
@@ -66,7 +68,7 @@ https://github.com/david419kr/niconico-yt-morphe-patches
 ### 3. YouTube 패치
 
 1. Morphe 홈 화면에서 **YouTube**를 선택합니다.
-2. 버전 `21.04.223`을 선택하고 수정되지 않은 `.apk` 파일을 지정합니다.
+2. 버전 `21.20.405`를 선택하고 수정되지 않은 `.apk` 파일을 지정합니다. `21.04.223`을 계속 사용하는 경우 해당 버전을 지원하는 공식 패치와 조합합니다.
 3. **Morphe Patches** 탭에서 추천 패치를 활성화합니다.
 4. **Niconico YT Comments Patches** 탭에서 다음 패치를 활성화합니다.
 
@@ -82,5 +84,5 @@ https://github.com/david419kr/niconico-yt-morphe-patches
 
 ## 업데이트
 
-- **원격 소스:** `Sources`에서 소스를 선택하고 **Update**를 누릅니다.
+- **원격 소스:** `Sources`에서 **Niconico YT Comments Patches**를 선택하고 **Update**를 누릅니다. 버전 `1.3.2`로 갱신됐는지 확인한 뒤 원본 YouTube APK에 다시 패치합니다. 위 저장소 URL은 항상 현재 배포된 번들을 가리킵니다.
 - **로컬 소스:** 기존 소스를 삭제한 뒤 새 `.mpp`를 다운로드하여 다시 추가합니다.

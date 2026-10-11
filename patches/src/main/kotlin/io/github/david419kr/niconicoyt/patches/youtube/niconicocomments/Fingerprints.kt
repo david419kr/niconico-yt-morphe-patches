@@ -5,6 +5,7 @@ import app.morphe.patcher.InstructionLocation.MatchAfterImmediately
 import app.morphe.patcher.InstructionLocation.MatchAfterWithin
 import app.morphe.patcher.InstructionLocation.MatchFirst
 import app.morphe.patcher.OpcodesFilter
+import app.morphe.patcher.anyInstruction
 import app.morphe.patcher.checkCast
 import app.morphe.patcher.fieldAccess
 import app.morphe.patcher.literal
@@ -165,8 +166,9 @@ private object PlaybackRateApplierParentFingerprint : Fingerprint(
     parameters = listOf("L"),
     filters = listOf(
         string("Playback rate: %f"),
-        literal(0.25f),
-        literal(4.0f),
+        // Morphe custom speeds rewrites these limits before another source executes.
+        anyInstruction(literal(0.25f), literal(0.0f)),
+        anyInstruction(literal(4.0f), literal(8.0f)),
     ),
 )
 
@@ -175,8 +177,8 @@ internal object PlaybackRateApplierFingerprint : Fingerprint(
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     returnType = "V",
     filters = listOf(
-        literal(0.25f),
-        literal(4.0f),
+        anyInstruction(literal(0.25f), literal(0.0f)),
+        anyInstruction(literal(4.0f), literal(8.0f)),
         methodCall(
             opcode = Opcode.INVOKE_INTERFACE,
             parameters = listOf("F"),
